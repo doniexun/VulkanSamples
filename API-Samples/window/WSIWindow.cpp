@@ -314,7 +314,7 @@ const unsigned char WIN32_TO_HID[256] = {
      58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69,104,105,106,107,
     108,109,110,111,112,113,114,115,  0,  0,  0,  0,  0,  0,  0,  0,
      83, 71,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    225,229,224,228,226,230,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  //L/R shift/ctrl/alt
       0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 51, 46, 54, 45, 55, 56,
      53,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
       0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 47, 49, 48, 52,  0,
@@ -422,6 +422,7 @@ EventType Window_win32::GetEvent(){
     running = (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)>0);
     
     if (running) {
+        TranslateMessage(&msg);
         int16_t x = GET_X_LPARAM(msg.lParam);
         int16_t y = GET_Y_LPARAM(msg.lParam);
 /*
@@ -438,7 +439,20 @@ EventType Window_win32::GetEvent(){
             return{ EventType::NONE };
         }
 */
-        TranslateMessage(&msg);
+
+        //--Convert Shift / Ctrl / Alt key messages to LeftShift / RightShift / LeftCtrl / RightCtrl / LeftAlt / RightAlt--
+        if (msg.message == WM_KEYDOWN || msg.message == WM_KEYUP) {
+            if (msg.wParam == VK_CONTROL) msg.wParam = (msg.lParam&(1 << 24)) ? VK_RCONTROL : VK_LCONTROL;
+            if (msg.wParam == VK_SHIFT) {
+                if (!!(GetKeyState(VK_LSHIFT)&128) != KeyState(KEY_LeftShift )) PostMessage(hWnd, msg.message, VK_LSHIFT, 0);
+                if (!!(GetKeyState(VK_RSHIFT)&128) != KeyState(KEY_RightShift)) PostMessage(hWnd, msg.message, VK_RSHIFT, 0);
+                return{ EventType::NONE };
+            }
+        }else if (msg.message == WM_SYSKEYDOWN || msg.message == WM_SYSKEYUP) {
+            if (msg.wParam == VK_MENU) msg.wParam = (msg.lParam&(1 << 24)) ? VK_RMENU : VK_LMENU;
+        }
+        //-----------------------------------------------------------------------------------------------------------------
+        
         static char buf[4] = {};
         uint8_t bestBtn=BtnState(1) ? 1 : BtnState(2) ? 2 :BtnState(3) ? 3 : 0;
         switch (msg.message) {
